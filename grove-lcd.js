@@ -127,7 +127,7 @@ export class GroveLCDRGB {
     // 0010 0000 -> 0x20  (DMBLNK to 1, i.e. blinky mode)
     this[setReg](REG_MODE2, 0x20);
 
-    this.setRGB(255, 255, 255);
+    this.setRGB(0, 0, 0);
   }
 
   /**

@@ -90,7 +90,6 @@ const stats = (prices: Price[]) => {
 };
 
 const lcd = os.hostname() === 'malina' ? new GroveLCDRGB() : undefined;
-lcd?.on();
 
 const hourly = (func: () => void) => {
   const now = new Date();
@@ -108,6 +107,8 @@ const hourly = (func: () => void) => {
 
 hourly(async () => {
   const hour = getHours(new Date())
+  const isDisplayEnabled = hour < 3 || hour > 8;
+  isDisplayEnabled ? lcd?.on() : lcd?.off()
   try {
     const series = await fetchPrices();
     const data = stats(series);
@@ -116,14 +117,18 @@ hourly(async () => {
     if (data) {
       const {now, next} = data;
       const value = series[0].value;
-      lcd?.setRGB(...(hour >= 3 && hour <= 8 ? [0, 0, 0] : color(value)));
-      lcd?.setText(`${ts1}: ${now}\n${ts2}: ${next}`);
+      if (isDisplayEnabled) {
+        lcd?.setRGB(...color(value));
+        lcd?.setText(`${ts1}: ${now}\n${ts2}: ${next}`);
+      }
     }
   } catch (e) {
     console.error(
       `Failed to fetch prices: ${e instanceof ZodError ? JSON.stringify(e.flatten().fieldErrors) : (e as any).message}`,
     );
-    lcd?.setRGB(brightness * 2, 0, 0);
-    lcd?.setText(`ERROR!`);
+    if (isDisplayEnabled) {
+      lcd?.setRGB(brightness * 2, 0, 0);
+      lcd?.setText(`ERROR!`);
+    }
   }
 });
