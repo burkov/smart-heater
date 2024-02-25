@@ -14,61 +14,14 @@ import {
   startOfHour,
   startOfToday,
 } from 'date-fns';
-import {z, ZodError, ZodString} from 'zod';
+import { z, ZodError, ZodString } from 'zod';
 
 //@ts-ignore
-import {GroveLCDRGB} from './grove-lcd';
-import os from 'os'
+import { GroveLCDRGB } from './grove-lcd';
+import os from 'os';
 
-const zodFetch = async <TData>(schema: { parse: (o: any) => TData }, url: string, params?: Record<string, string>) => {
-  const urlWithParams = params ? url + '?' + new URLSearchParams(params) : url;
-  const response = await fetch(urlWithParams);
-  if (!response.ok) throw new Error(`Failed to fetch, status ${response.status}`);
-  const data = await response.json();
-  try {
-    return schema.parse(data);
-  } catch (e) {
-    console.log(`Failed to parse data: ${JSON.stringify(data, null, ' ')}`);
-    throw e;
-  }
-};
 
-const priceSchema = z.object({
-  startDate: z
-    .preprocess<ZodString>((e) => `${e}:00+03:00`, z.string().datetime({offset: true}))
-    .transform((e) => parseISO(e)),
-  value: z.number(),
-  unit: z.string(),
-});
 
-const responseSchema = z.object({
-  error: z.boolean(),
-  series: z.array(priceSchema),
-});
-
-type Price = z.infer<typeof priceSchema>;
-
-const FORTUM_API_BASEURL = 'https://web.fortum.fi/api/v2';
-
-/**
- * @param take number of hours to takeI
- * @param daysOffset days offset
- *
- * @throws {Error} on non-200 code or if {error: true}
- */
-const fetchPrices = async (daysOffset: number = 0, take: number = 12) => {
-  const startFrom = startOfHour(new Date());
-  const data = await zodFetch(responseSchema, `${FORTUM_API_BASEURL}/spot-price-anonymous`, {
-    priceListKey: '77',
-    from: formatISO(addDays(startOfToday(), daysOffset)),
-    to: formatISO(addDays(endOfTomorrow(), daysOffset)),
-  });
-  if (data.error) throw new Error(`Fortum response contains error: ${JSON.stringify(data)}`);
-  const sorted = data.series.sort((a, b) => compareAsc(a.startDate, b.startDate));
-  return sorted
-    .filter(({startDate}) => isAfter(startDate, startFrom) || isEqual(startDate, startFrom))
-    .slice(0, take);
-};
 
 const brightness = 0x08;
 
@@ -91,31 +44,36 @@ const stats = (prices: Price[]) => {
 
 const lcd = os.hostname() === 'malina' ? new GroveLCDRGB() : undefined;
 
-const hourly = (func: () => void) => {
+let errorCount = 0;
+
+const hourly = async (func: () => Promise<void>) => {
   const now = new Date();
-  const nextHour = set(addHours(now, 1), {minutes: 0})
+  const nextHour = set(addHours(now, 1), { minutes: 0 });
   const diff = differenceInMinutes(nextHour, now);
   console.log(`${formatISO(now)} :: Calling func(), next run in ${diff} minutes`);
   try {
-    func();
+    await func();
+    errorCount = 0;
+    setTimeout(() => hourly(func), diff * 60 * 1000);
   } catch (e) {
-    console.error('Failed to exec', e);
+    errorCount++;
+    console.error(`Failed to exec (${errorCount})`, e);
+    setTimeout(() => hourly(func), 1 * 60 * 1000);
   }
-  setTimeout(() => hourly(func), diff * 60 * 1000);
+  
 };
 
-
 hourly(async () => {
-  const hour = getHours(new Date())
+  const hour = getHours(new Date());
   const isDisplayEnabled = hour < 3 || hour > 8;
-  isDisplayEnabled ? lcd?.on() : lcd?.off()
+  isDisplayEnabled ? lcd?.on() : lcd?.off();
   try {
     const series = await fetchPrices();
     const data = stats(series);
-    const ts1 = format(series[0].startDate, 'HH:mm')
-    const ts2 = format(addHours(series[0].startDate, 1), 'HH:mm')
+    const ts1 = format(series[0].startDate, 'HH:mm');
+    const ts2 = format(addHours(series[0].startDate, 1), 'HH:mm');
     if (data) {
-      const {now, next} = data;
+      const { now, next } = data;
       const value = series[0].value;
       if (isDisplayEnabled) {
         lcd?.setRGB(...color(value));
