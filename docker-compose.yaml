@@ -1,0 +1,12 @@
+version: '3'
+services:
+  smarthome:
+    container_name: smarthome
+    restart: always
+    command: serve --http 0.0.0.0:8090
+    build:
+      context: .
+    ports:
+      - "8090:8090"
+    volumes:
+      - "./pb_data:/app/pb_data:rw"
