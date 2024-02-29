@@ -38,7 +38,6 @@ func electricityPriceUpdater() {
 			continue
 		}
 		if errors.Is(err, sql.ErrNoRows) {
-			Logger.Warn("New electricity price", "startDate", price.StartDate, "value", price.Value, "unit", price.Unit)
 			record = models.NewRecord(ElectricityPricesCollection)
 		} else {
 			oldValue := record.GetFloat("value")

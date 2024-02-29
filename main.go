@@ -17,7 +17,7 @@ func main() {
 		internal.Init(internal.App)
 		scheduler := cron.New()
 		internal.InitElectricityPriceUpdater(scheduler, "0 */4 * * *") // on the 0th minute of every 4th hour
-		internal.InitDisplayUpdater(scheduler, "1 */1 * * *")          // on the 1th minute of every hour
+		// internal.InitDisplayUpdater(scheduler, "1 */1 * * *")          // on the 1th minute of every hour
 		scheduler.Start()
 		return nil
 	})
